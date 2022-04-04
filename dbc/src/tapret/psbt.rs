@@ -44,6 +44,7 @@ impl EmbedCommitProof<MultiCommitment, (Psbt, Transaction), Lnpbp6>
 impl EmbedCommitVerify<MultiCommitment, Lnpbp6> for (Psbt, Transaction) {
     type Proof = TapretProof;
     type CommitError = TapretPsbtError;
+    type VerifyError = TapretPsbtError;
 
     fn embed_commit(
         &mut self,

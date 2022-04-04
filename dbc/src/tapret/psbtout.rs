@@ -15,6 +15,7 @@
 
 #![cfg(feature = "wallet")]
 
+use crate::tapret::taptree::TapretSourceInfo;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Output;
 use bitcoin::util::taproot::TapBranchHash;
@@ -66,14 +67,11 @@ impl EmbedCommitProof<MultiCommitment, (psbt::Output, TxOut), Lnpbp6>
                 return Err(TapretPsbtError::InternalKeyMissed);
             };
 
-        let tap_tree = if let Some(tap_tree) = &mut output.tap_tree {
-            tap_tree
-        } else {
-            return Err(TapretPsbtError::TapTreeMissed);
-        };
-
         *internal_key = self.internal_key;
-        *tap_tree = self.other_node.restore_original_container(tap_tree)?;
+        // TODO: Read path from PSBT
+        let source =
+            TapretSourceInfo::with(output.tap_tree.cloned(), dfs_path)?;
+        *tap_tree = self.path_proof.restore_original_container(tap_tree)?;
 
         let original_root =
             TaprootScriptTree::from(tap_tree.clone()).into_root_node();
@@ -93,6 +91,7 @@ impl EmbedCommitProof<MultiCommitment, (psbt::Output, TxOut), Lnpbp6>
 impl EmbedCommitVerify<MultiCommitment, Lnpbp6> for (psbt::Output, TxOut) {
     type Proof = TapretProof;
     type CommitError = TapretPsbtError;
+    type VerifyError = TapretPsbtError;
 
     fn embed_commit(
         &mut self,
@@ -112,14 +111,14 @@ impl EmbedCommitVerify<MultiCommitment, Lnpbp6> for (psbt::Output, TxOut) {
             return Err(TapretPsbtError::TapTreeMissed);
         };
 
-        let node_proof = tap_tree.embed_commit(msg)?;
+        let path_proof = tap_tree.embed_commit(msg)?;
 
         let proof = TapretProof {
-            other_node: node_proof,
+            path_proof,
             internal_key,
         };
 
-        txout.convolve_commit(proof.clone(), msg);
+        txout.convolve_commit(&proof, msg);
 
         Ok(proof)
     }
